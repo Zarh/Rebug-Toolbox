@@ -84,7 +84,7 @@ sys_process_param_t __sys_process_param SYS_PROCESS_PARAM_SECTION = {
 
 #define STR_APP_NAME "Rebug Toolbox"
 #define STR_APP_ID	 "RBGTLBOX2"
-#define STR_APP_VER	 "02.02.11"
+#define STR_APP_VER	 "02.02.13"
 
 
 
@@ -223,6 +223,8 @@ char STR_TOGPS2[50] = "Toggle PS2 Emulator";
 char STR_TOGPS2DESC[130] = "PS2Emu swap to use Original PS2 Emu files.";
 char STR_TOGWM[50] = "Toggle webMAN";
 char STR_TOGWMDESC[130] = "Enable or disable integrated webMAN on next reboot.";
+char STR_COBPUPD[50] = "COBRA Payload Updater"; 
+char STR_COBPUPDDESC[130] = "Updating COBRA Payload to the latest version";
 char STR_NORBG[130] = "REBUG Selector Functions Not Available";
 char STR_NORBGDESC[130] = "Please install REBUG REX/D-REX Firmware to access the Selector Functions.";
 char STR_PATCHLV1[130] = "LV1 Peek/Poke Support";
@@ -357,6 +359,8 @@ char STR_MODDEBSDEBERR1[130] = "[DEBUG SETTINGS: MENU DEBUG] FAILED";
 char STR_MODDEBSDEBERR2[130] = "TRY [DEBUG SETTINGS: MENU CEX QA]";
 char STR_MODCOBENA[50] = "COBRA Mode enabled.";
 char STR_MODCOBDIS[50] = "COBRA Mode disabled.";
+char STR_ERRCOBUP[130]  = "No COBRA payload files are found.";
+char STR_COBUPSUCC[130]  = "Cobra payload updated!\nReboot for changes to take effect.";
 char STR_ERRFLASH[130] = "Error in flash, reinstall firmware to fix this";
 char STR_PS2ERR1[130] = "No PS2Emu files found on HDD or USB(dev_usb000).";
 char STR_PS2CONT[130] = "Continue to copy PS2Emu files from USB(dev_usb000)?";
@@ -739,6 +743,8 @@ static void update_language(void)
 	language("STR_TOGPS2DESC", STR_TOGPS2DESC);
 	language("STR_TOGWM", STR_TOGWM);
 	language("STR_TOGWMDESC", STR_TOGWMDESC);
+	language("STR_COBPUPD", STR_COBPUPD);
+	language("STR_COBPUPDDESC", STR_COBPUPDDESC);
 	language("STR_NORBG", STR_NORBG);
 	language("STR_NORBGDESC", STR_NORBGDESC); 
 	language("STR_PATCHLV1", STR_PATCHLV1); 
@@ -873,6 +879,8 @@ static void update_language(void)
 	language("STR_MODDEBSDEBERR2", STR_MODDEBSDEBERR2);
 	language("STR_MODCOBENA", STR_MODCOBENA);
 	language("STR_MODCOBDIS", STR_MODCOBDIS);
+	language("STR_ERRCOBUP", STR_ERRCOBUP);
+	language("STR_COBUPSUCC", STR_COBUPSUCC);
 	language("STR_ERRFLASH", STR_ERRFLASH);
 	language("STR_PS2ERR1", STR_PS2ERR1);
 	language("STR_PS2CONT", STR_PS2CONT);
@@ -1075,6 +1083,7 @@ void change_lv1_um(u8 val);
 void change_lv1_dm(u8 val);
 void set_xReg();
 void set_xo();
+void enable_netemu_cobra(); // 2.02.12
 
 u64 idps0=0;
 u64 idps1=0;
@@ -3812,7 +3821,7 @@ int load_texture(u8 *data, char *name, uint16_t dw)
 void pokeq( uint64_t addr, uint64_t val)
 {
 	if(c_firmware!=3.55f && c_firmware!=3.41f && c_firmware!=3.15f && c_firmware!=4.21f && c_firmware!=4.30f && c_firmware!=4.31f && c_firmware!=4.40f && c_firmware!=4.41f && c_firmware!=4.46f && c_firmware!=4.50f && c_firmware!=4.53f &&
-	   c_firmware!=4.55f && c_firmware!=4.60f && c_firmware!=4.65f && c_firmware!=4.66f && c_firmware!=4.70f && c_firmware!=4.75f && c_firmware!=4.76f && c_firmware!=4.78f && c_firmware!=4.80f) return;
+	   c_firmware!=4.55f && c_firmware!=4.60f && c_firmware!=4.65f && c_firmware!=4.66f && c_firmware!=4.70f && c_firmware!=4.75f && c_firmware!=4.76f && c_firmware!=4.78f && c_firmware!=4.80f && c_firmware!=4.81f) return;
 
 	if(!pp_enabled) return;
 	system_call_2(SYSCALL_POKE, addr, val);
@@ -5921,6 +5930,29 @@ int open_side_menu(int _top, int sel)
 	return sel;
 }
 
+// 2.02.12 
+#define SYSCALL8_OPCODE_ENABLE_PS2NETEMU	0x1ee9	/* Cobra 7.50 */
+#define PS2NETEMU_GET_STATUS				2
+
+static int get_cobra_ps2netemu_status(void)
+{
+	system_call_2(8, (uint64_t) SYSCALL8_OPCODE_ENABLE_PS2NETEMU, (uint64_t) PS2NETEMU_GET_STATUS);
+	return (int)p1;
+}
+
+static void enable_netemu_cobra(int param)
+{
+	int status = get_cobra_ps2netemu_status();
+
+	if(status < 0 || status == param) return;
+
+	system_call_2(8, (uint64_t) SYSCALL8_OPCODE_ENABLE_PS2NETEMU, (uint64_t) param);
+	dialog_ret=0;
+	cellMsgDialogOpen2( type_dialog_ok, (const char*) "PS2 Emulator is set to use Software Emulation, exiting to XMB", dialog_fun2, (void*)0x0000aaab, NULL );
+	wait_dialog_simple();
+	exit(0);
+}
+//2.02.12 END
 /*
 int open_dd_menu_xmb(char *_caption, int _width, t_opt_list *list, int _max, int _x, int _y, int _max_entries)
 {
@@ -6114,6 +6146,7 @@ u8 xmb_mode=0;
 u8 menu_mode=0;
 u8 cobra_mode=0;
 u8 swap_emu=0;
+u8 update_cobra=0; // 02.02.13
 u8 gameos_flag=0;
 u8 webman_mode=0;
 u8 cfw_settings=0;
@@ -6165,6 +6198,7 @@ void parse_settings()
 			else if(!strcmp(oini, "menu_mode"))			menu_mode		=val;
 			else if(!strcmp(oini, "cobra_mode"))		cobra_mode		=val;
 			else if(!strcmp(oini, "swap_emu"))		swap_emu		=val;
+			else if(!strcmp(oini, "update_cobra"))		update_cobra	=val;	// 02.02.13		
 			else if(!strcmp(oini, "webman_mode"))		webman_mode		=val;
 			else if(!strcmp(oini, "cfw_settings"))		cfw_settings		=val;
 			else if(!strcmp(oini, "wmlp"))				wmlp		=val;
@@ -6329,7 +6363,20 @@ void add_utilities()
 	add_xmb_member(xmb[col].member, &xmb[col].size, STR_SAVEIDRK, STR_SAVEIDRKDESC,
 			/*type*/6, /*status*/2, /*icon*/xmb_icon_tool, 128, 128);
 	}
-
+	// 2.02.12		
+	uint16_t version;
+	cobra_get_version(&version, NULL);
+	int status_ps2=get_cobra_ps2netemu_status();
+	if((is_cobra_based()) && (version>=0x750) && (status_ps2!=-1))		
+	{
+	int param=0;
+	if(status_ps2==0)
+	param++;
+	add_xmb_member(xmb[col].member, &xmb[col].size, (char*)"Toggle PS2 netemu", (char*)"Force Enable PS2 Soft Emulation on Backward Compatible Consoles",
+			/*type*/6, /*status*/2, /*icon*/xmb_icon_tool, 128, 128); 
+	}		
+	// 2.02.12 END	
+	
 	add_xmb_option(xmb[col].member, &xmb[col].size, STR_PS3ID, STR_PS3IDDESC,	(char*)"util_idps");
 	add_xmb_suboption(xmb[col].member[xmb[col].size-1].option, &xmb[col].member[xmb[col].size-1].option_size, 0, STR_NO,			(char*)"0");
 	char tid[8];
@@ -6452,6 +6499,18 @@ void add_settings_column()
 			xmb[col].member[xmb[col].size-1].option_selected=webman_mode;
 			xmb[col].member[xmb[col].size-1].icon=xmb_icon_tool;
 		}
+		// 02.02.13
+		uint16_t version;
+		cobra_get_version(&version, NULL);		
+		if((c_firmware==4.81f) && (is_cobra_based()) && (version<0x752))
+		{			
+			add_xmb_option(xmb[col].member, &xmb[col].size, STR_COBPUPD, STR_COBPUPDDESC,	(char*)"update_cobra");
+			add_xmb_suboption(xmb[col].member[xmb[col].size-1].option, &xmb[col].member[xmb[col].size-1].option_size, 0, (char*)"NO",			(char*)"0");
+			add_xmb_suboption(xmb[col].member[xmb[col].size-1].option, &xmb[col].member[xmb[col].size-1].option_size, 0, (char*)"UPDATE",				(char*)"1");
+			xmb[col].member[xmb[col].size-1].option_selected=update_cobra; //update_cobra payload;
+			xmb[col].member[xmb[col].size-1].icon=xmb_icon_tool;
+		}
+		// 02.02.13 END
 
 /*			add_xmb_option(xmb[col].member, &xmb[col].size, (char*)"GameOS boot flag", (char*)"set gameos boot flag to fix ps2 issue",	(char*)"gameos_flag");
 			add_xmb_suboption(xmb[col].member[xmb[col].size-1].option, &xmb[col].member[xmb[col].size-1].option_size, 0, (char*)"Set it",			(char*)"0");
@@ -7588,9 +7647,9 @@ void set_idps(u8 _val) //0=EID5, 1=EID0, 2=EID5, 3..13=0x82..0x8E
 
 	char msg[512];
 	if(found)
-		sprintf(msg, "%s %i %s 0x%02X.", STR_CHANGEIDPSOK1, STR_CHANGEIDPSOK2, found, newID);
+		sprintf(msg, "%s %i %s 0x%02X.", STR_CHANGEIDPSOK1, found, STR_CHANGEIDPSOK2, newID);
 	else
-		sprintf(msg, "%s: %08X-%08X-%08X-%08X", idps0>>32, idps0, idps1>>32, idps1);
+		sprintf(msg, "%s: %08X-%08X-%08X-%08X", STR_CHANGEIDPSERROR, idps0>>32, idps0, idps1>>32, idps1);
 
 	cellMsgDialogAbort();
 	dialog_ret=0; cellMsgDialogOpen2( type_dialog_ok, msg, dialog_fun2, (void*)0x0000aaab, NULL ); wait_dialog_simple();
@@ -8928,6 +8987,19 @@ force_reload:
 			{
 			  if(xmb[xmb_icon].first==n+8) {dump_root_key();}
 			}
+			uint16_t version;
+			cobra_get_version(&version, NULL);
+			int status_ps2=get_cobra_ps2netemu_status();
+			if((is_cobra_based()) && (version>=0x750) && (status_ps2!=-1))		
+			{
+				if(xmb[xmb_icon].first==n+9) 
+					{
+					int param=0;
+					if(status_ps2==0)
+						param++;
+					enable_netemu_cobra(param);
+					}	// 2.02.12
+			}
 		}
 
 		if((xmb[xmb_icon].member[xmb[xmb_icon].first].option_size)) // || xmb[2].first<3 //settings
@@ -9985,6 +10057,9 @@ if(stat.st_size==2605184)
 	swap_emu=1;
 
 else if(stat.st_size==2605232)
+	swap_emu=1;
+
+else if(stat.st_size==2605424)
 	swap_emu=1;
 
 else if(stat.st_size==2605216)
@@ -12862,7 +12937,40 @@ void apply_settings(char *option, int val, u8 _forced)
 			wait_dialog_simple();
 		}
 	}
-
+	///02.02.13
+	if(!strcmp(option, "update_cobra"))
+	{
+		if(!exist((char*)"/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.cex.update"))
+		{
+			dialog_ret=0;
+			cellMsgDialogOpen2( type_dialog_ok, STR_ERRCOBUP, dialog_fun2, (void*)0x0000aaab, NULL );
+			wait_dialog_simple();
+			return;
+		}
+		if(exist((char*)"/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.cex.update"))
+		{
+			unlink("/dev_rebug/rebug/cobra/stage2.cex");
+			unlink("/dev_rebug/rebug/cobra/stage2.dex");
+			unlink("/dev_rebug/rebug/cobra/stage2.cex.bak");
+			unlink("/dev_rebug/rebug/cobra/stage2.dex.bak");			
+			if(update_cobra==1)
+			{
+				file_copy((char*)"/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.cex.update", (char*)"/dev_rebug/rebug/cobra/stage2.cex", 0);
+				file_copy((char*)"/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.dex.update", (char*)"/dev_rebug/rebug/cobra/stage2.dex", 0);
+				unlink("/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.cex.update");
+				unlink("/dev_hdd0/game/RBGTLBOX2/USRDIR/stage2.dex.update");
+				auto_reboot = 1;
+			}
+			else
+			{
+				return;
+			}
+			dialog_ret=0;
+			cellMsgDialogOpen2( type_dialog_ok, STR_COBUPSUCC, dialog_fun2, (void*)0x0000aaab, NULL );
+			wait_dialog_simple();
+		}
+	}
+	/// 02.02.13 END
 	if((c_firmware==4.78f || c_firmware==4.80f) && !strcmp(option, "cfw_settings"))
 	{
 
